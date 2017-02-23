@@ -1,0 +1,226 @@
+---
+title: "Week 2 Milestone Report"
+author: "Matthew Richards"
+date: "February 16, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+This is a milestone report for Week 2 of Johns Hopkins Data Science Capstone Project. Here, we are beginning with 3 datasets of plain text English--blogs, news, and Twitter--and exploring the words and phrases of those datasets. We look at the basic summary statistics of the data, examine the most frequent words and phrases in these datasets, and investigate how many unique words are required to represent the majority of words used in a given language.
+
+## Loading and Initial Exploration
+
+We will begin by loading in our English data into a corpus using the *tm* (text mining) package in R and dividing it into the 3 different documents.
+
+```{r cache = TRUE}
+suppressMessages(library(tm))
+en.docs <- VCorpus(DirSource("../final/en_US"),
+                   readerControl = list(language="en"))
+en.blog <- as.character(en.docs[["en_US.blogs.txt"]])
+en.news <- as.character(en.docs[["en_US.news.txt"]]) #This is a list
+en.twitter <- as.character(en.docs[["en_US.twitter.txt"]]) #This is a list
+
+# Remove the large corpus
+rm(en.docs); invisible(gc())
+```
+
+We know from just examining the files that these are very large documents, on the order of hundreds of MB of plain text. Let's split up the documents and look at the number of lines in each file.
+
+```{r cache = TRUE}
+# Show the number of lines in each
+length(en.blog)
+length(en.news)
+length(en.twitter)
+```
+So we've got over 3 million lines of text here. 
+
+## Sampling the Data
+
+These are pretty large files and if we try to work with all these data, it's going to greatly hamper performance. Instead, let's take 10% of each dataset. It's important that we do this as lines; each line of a file is an entry. For example:
+
+```{r}
+# Print the first blog entry
+en.blog[10]
+```
+
+Let's sample 10% of the lines from each, which should give us much more manageable datasets, but still provide plenty of training data. We'll set a random number seed to ensure reproducibility. We'll also go ahead and combine these smaller samples into one character vector that we'll use as our dataset going forward and remove the individual datasets
+
+```{r cache = TRUE}
+set.seed(140185)
+en.blog <- sample(en.blog,round(length(en.blog)/10))
+en.news <- sample(en.blog,round(length(en.blog)/10))
+en.twitter <- sample(en.blog,round(length(en.blog)/10))
+
+# Combine the data
+en.data <- c(en.blog,en.news,en.twitter)
+rm(en.blog,en.news,en.twitter)
+invisible(gc())
+```
+
+## Data cleaning
+
+Equipped with our smaller dataset, it's time for us to clean the data. We will perform the following operations using the *tm* package transformations:
+
+1. Convert all words to lowercase
+2. Remove all punctuation
+3. Remove all digits
+4. Remove extra whitespace
+
+Here is our code for doing so:
+
+```{r cache = TRUE}
+# Make all lower case
+en.data <- tolower(en.data)
+en.data <- removePunctuation(en.data)
+en.data <- removeNumbers(en.data)
+en.data <- stripWhitespace(en.data)
+```
+
+We also want to remove profanity from our documents; to do so, we have obtained a list of words from [bannedwordlist.com](http://www.bannedwordlist.com/). Let's read in that list and remove the words from our dataset.
+
+```{r cache=TRUE}
+bad.words <- read.table("./swearWords.txt")
+en.data <- removeWords(en.data,bad.words$V1)
+```
+
+There are also some leftover non-UTF-8 characters hanging around, for example:
+
+```{r}
+en.data[1]
+```
+
+Let's get rid of those as well:
+
+```{r}
+en.data <- iconv(en.data,"UTF-8","ASCII",sub="")
+en.data[1]
+```
+
+Our data set looks clean and now we can move on with our exploration
+
+## Word and Phrase Frequencies
+
+We'll start by separating the text into N-gram phrases, starting with single words and moving up to 3-gram phrases. We'll do so using the *RWeka* package for data mining. 
+
+```{r}
+options(java.parameters = "-Xmx4000m")
+suppressMessages(library(RWeka))
+
+# Separate into all words 
+singlets <- WordTokenizer(en.data)
+```
+
+Let's look at the distribution of words; we've got a vector of all our words, so we'll make a barplot of those. We'll just do the top 10 words by frequency, which should be illuminating.
+
+```{r cache=TRUE}
+singlet.df <- data.frame(table(singlets))
+singlet.df <- singlet.df[order(singlet.df$Freq,decreasing=TRUE),]
+with(singlet.df[1:10,],barplot(height=Freq,names.arg = singlets,
+                        horiz=FALSE,cex.names=0.5))
+```
+
+Looking at our top 10 words, these make a good deal of sense, with "the" easily occuring most frequently, and ever other one of the top 10 words being a small, intuitively common word. These are basically a set of "stop words", which don't necessarily give special meaning to language but that link meaningful phrases and concepts together. We could theoretically remove these words, but the tradeoff would be that we couldn't predict these using our algorith later. Based on how common they are, we will keep these words in our dataset, at least for now. 
+
+Of course, words are uttered in phrases and it would make more sense to look at phrases rather than just words. So let's take our 2-gram and 3-gram phrases and look at those too. We will begin with 2-gram phrases, or couplets, and graph the 10 most common. 
+
+```{r cache=TRUE}
+couplets <- NGramTokenizer(en.data, Weka_control(min=2,max=2))
+couplet.df <- data.frame(table(couplets)); rm(couplets)
+couplet.df <- couplet.df[order(couplet.df$Freq,decreasing=TRUE),]
+with(couplet.df[1:10,],barplot(height=Freq,names.arg = couplets,
+                        horiz=FALSE,cex.names=0.5))
+```
+
+Again, looks pretty sensible, it's a lot of phrases made out of our "stop words". And now we'll do the same for 3-word phrases, or triplets.
+
+```{r cache=TRUE}
+triplets <- NGramTokenizer(en.data, Weka_control(min=3,max=3))
+triplet.df <- data.frame(table(triplets)); rm(triplets)
+triplet.df <- triplet.df[order(triplet.df$Freq,decreasing=TRUE),]
+with(triplet.df[1:10,],barplot(height=Freq,names.arg = triplets,
+                        horiz=FALSE,cex.names=0.5))
+```
+
+Once again, our most common phrases make a lot of sense and contain our "stop words", the most common words in our dataset. Now that we know our most common words and phrases, let's start thinking about the ubiquity of these words; that is, how much of the full dataset do these words represent?
+
+## Representing the Full Data Set
+
+Though there are a lot of words in the data set, it's pretty likely that the majority of the words occuring in the data set are part of a much smaller unique set. How many words, starting with the most frequent and working our way down, do we need to represent the dataset?
+
+For this, let's define a function for finding the percentage of our unique words needed to represent a given percentage of the full dataset:
+```{r cache = TRUE}
+
+find.cutoff <- function(singlet.df,percentage=50){
+  # Find the cutoff of words needed
+  cutoff <- percentage*sum(singlet.df$Freq)/100
+  # Use a while loop to get to the cutoff
+  word.sum <- 0
+  word.idx <- 0
+  while(word.sum < cutoff){
+    word.idx <- word.idx + 1
+    word.sum <- word.sum + singlet.df$Freq[word.idx]
+  }
+  word.idx
+}
+```
+
+All we're doing here is taking the full set of words, summing up the total number of words, and then running down our list till we hit the cutoff that pushes us over a certain percentage. Thus, if we run *find.cutoff(df,50)*, we'll find the number of words needed to represent 50% of the dataset. For reference, how many total words are we talking about?
+
+```{r cache = TRUE}
+length(singlet.df$singlets)
+```
+
+So we've got about 100,000 total unique words in our dataset. What about the total number of words, regardless of uniqueness?
+
+```{r cache = TRUE}
+sum(singlet.df$Freq)
+```
+
+Alright, so starting out we know that there are about 4.4 million total words, but only about 100,000 unique words. Using our function, how many unique words to we need to represent 50% of the dataset?
+
+```{r cache=TRUE}
+find.cutoff(singlet.df,50)
+```
+
+Looks like we need only 103 words to represent half of our dataset, only about 0.1% of our unique words. What about representing the vast majority, say 90% of the dataset?
+
+```{r cache=TRUE}
+find.cutoff(singlet.df,90)
+```
+
+So we'd need only about 6.5% of our unique words to represent 90% of our dataset. Knowing this, it's likely that we can represent our dataset with a much smaller subset. In fact, how many words are needed for 99% of our dataset?
+
+```{r cache=TRUE}
+find.cutoff(singlet.df,99)
+```
+
+Even though we're representing 99% of our dataset with these ~59,000 words, it's much smaller than 99% of the total unique words, about 100,000. 
+
+This gives us 3 data points, but we can actually look at the whole trend of how many words are needed to represent a given percentage
+
+```{r cache=TRUE}
+percents <- seq(1,99,by=3)
+cutoffs <- numeric(length=length(percents))
+for(i in 1:length(cutoffs)){cutoffs[i] <- find.cutoff(singlet.df,percents[i])}
+cutoffs <- 100*cutoffs/length(singlet.df$singlets)
+plot(cutoffs,percents,type = "l",
+     xlab = "% of Unique Words Needed", 
+     ylab = "% of Total Words Represented")
+```
+
+As our initial tests suggested, we need a pretty small portion of the unique words to represent the total number of words in the data set. This may allow us to discard over half the dataset when making our model, which should result a faster algorithm. 
+
+## Conclusions
+
+From our short exploration of this dataset, we can take several useful conclusions:
+
+1. The English dataset is large and unwieldy, thus we will likely want to use a smaller sample, such as the 10% sample size we used here.
+2. The most common words and phrases all contain "stop words" such as "the", "a", and "is". Although we could drop these words from our dataset, it is likely that any phrase we try to predict with our algorithm will contain "stop words" and they may very well be our best bet for prediction. So for now at least, we will retain them. 
+3. Only a small portion of the unique set of words from the dataset are needed to represent most of the total words. Thus, we can likely cutoff over 50% of the unique words in the dataset and still maintain most of the richness contained therein. 
+
+These insights will likely help us as we look toward developing our model. 
