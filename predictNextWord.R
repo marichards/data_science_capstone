@@ -1,18 +1,17 @@
 ## predictNextWord.R
-library(RWeka)
+library(tokenizers)
 suppressMessages(library(data.table))
 library(stringr)
+suppressMessages(library(tm))
+library(hash)
 
 constructNgramTables <- function(){
 
   # Load and clean the dataset
-  suppressMessages(library(tm))
+  
   en.blog <- readLines(con = "../final/en_US/en_US.blogs.txt", warn=FALSE, skipNul = TRUE)
-  unlink("../final/en_US/en_US.blogs.txt")
   en.news <- readLines(con = "../final/en_US/en_US.news.txt", warn=FALSE, skipNul = TRUE)
-  unlink("../final/en_US/en_US.news.txt")
   en.twitter <- readLines(con = "../final/en_US/en_US.twitter.txt", warn=FALSE, skipNul = TRUE)
-  unlink("../final/en_US/en_US.twitter.txt")
   invisible(gc())
   
   # Take 10% of each
@@ -27,84 +26,86 @@ constructNgramTables <- function(){
   invisible(gc())
   
   # Clean the data
-  en.data <- tolower(en.data)
+
+  ############## Dataset is now clean ##################  en.data <- tolower(en.data)
   # Try removing stop words
+  en.data <- tolower(en.data)
 #  en.data <- removeWords(en.data, stopwords())
   en.data <- removePunctuation(en.data)
   en.data <- removeNumbers(en.data)
   en.data <- stripWhitespace(en.data)
+  en.data <- iconv(en.data,"UTF-8","ASCII",sub="")
   
-  # Remove bad words and non-ASCII
+  # Remove bad words
   bad.words <- read.table("./swearWords.txt")
   en.data <- removeWords(en.data,bad.words$V1)
-  en.data <- iconv(en.data,"UTF-8","ASCII",sub="")
-  rm(bad.words)
-  
-  ############## Dataset is now clean ##################
+  rm(bad.words); invisible(gc())
   
   ## Step 2: Create N-Gram Tables
   
   # Create table of words, including an index 
-  singlets <- WordTokenizer(en.data) # Takes about 5 seconds
-  singlet.df <- data.table(table(singlets)) # Takes about 2 seconds
-  singlet.df$idx <- 1:length(singlet.df$singlets)
+  singlets <- unlist(tokenize_ngrams(en.data, n=1)) # Takes about 3 seconds
+  singlet.hash <- hash(keys = unique(singlets),
+                       values = 1:length(unique(singlets))) # Takes about 0.3
+  # Invert the hash
+  singlet.inverted <- hash(keys = 1:length(unique(singlets)),
+                           values = unique(singlets))
   rm(singlets); invisible(gc())
   
-  # Create N-gram tables
-  ## Given the singlets, construct the couplets; don't worry about idx for now
-  couplets <- NGramTokenizer(en.data, Weka_control(min=2,max=2)) # Takes about 8 seconds
-  couplet.df <- data.table(table(couplets)); rm(couplets)
-  ## Split words; 5 seconds apiece
-  couplet.df$ngram <- word(couplet.df$couplets, 1)
+  # Create N-gram table up to 5 grams
+  quins <- unlist(tokenize_ngrams(en.data, n = 5))
+  rm(en.data); invisible(gc())
+  quins <-str_split(quins,pattern=" ")
   
-  couplet.df$last.word <- word(couplet.df$couplets, 2)
-  couplet.df[,couplets:=NULL] # Remove couplets column
+  convert.to.ints <- function(ngram,singlet.hash){
+    
+    # Do an operation I could do once
+    nint <- integer(length = length(ngram))
+    for(i in 1:length(ngram)){
+      nint[[i]] <- singlet.hash[[ngram[[i]]]]
+    }
+    
+    nint
+  }
   
-  invisible(gc())  
+  # Convert to integers and make into a matrix
+  quins <- lapply(quins,convert.to.ints,singlet.hash=singlet.hash)
+  quin.matrix <- matrix(unlist(quins), ncol = 5, byrow = TRUE)
   
-  triplets <- NGramTokenizer(en.data, Weka_control(min=3,max=3)) # Takes about 13 seconds
-  triplet.df <- data.table(table(triplets)); rm(triplets)
-  ## These next 2 take maybe 25 seconds total
-  triplet.df$ngram <- paste(word(triplet.df$triplets,1),word(triplet.df$triplets,2))
-  triplet.df$last.word <- word(triplet.df$triplets,3)
-  triplet.df[,triplets:=NULL] # Remove triplets column
-  invisible(gc())
+  # Option to convert to data table
+  quin.df <- data.table(word.1 = quin.matrix[,1],
+                        word.2 = quin.matrix[,2],
+                        word.3 = quin.matrix[,3],
+                        word.4 = quin.matrix[,4],
+                        word.5 = quin.matrix[,5])
   
-  # Do it for 4 grams too
-  quads <- NGramTokenizer(en.data, Weka_control(min=4,max=4))
-  quad.df <- data.table(table(quads)); rm(quads)
-  ## These next 2 take maybe 30 seconds total
-  quad.df$ngram <- paste(word(quad.df$quads,1),word(quad.df$quads,2), word(quad.df$quads,3))
-  quad.df$last.word <- word(quad.df$quads,4)
-  quad.df[,quads:=NULL] # Remove quads column
-  invisible(gc())  
 
-  # Do it for 5 grams too
-#  quins <- NGramTokenizer(en.data, Weka_control(min=5,max=5))
-#  quin.df <- data.table(table(quins)); rm(quins)
-  ## These next 2 take a while...way too long
-##  quin.df$ngram <- paste(word(quin.df$quins,1),word(quin.df$quins,2), word(quin.df$quins,3), word(quin.df$quins,4))
-#  quin.df$last.word <- word(quin.df$quins,5)
-#  quin.df[,quins:=NULL] # Remove quads column
-#  invisible(gc()) 
   
-  return(list(quad.df,
-              triplet.df,
-              couplet.df))
+  return(list(quin.df,
+              singlet.hash,
+              singlet.inverted)) ## THis function currently takes 4 minutes...not bad! 
+  #List is 153 Mb total, but 76.5 if you drop a quin; they're basically the same size
 }
 
-predictNextWord <- function(phrase,quad.df,triplet.df,couplet.df){
+predictNextWord <- function(phrase,singlet.hash,quin.df){
   # Take in the input and grab the last n grams for 4, 3, 2, 1
   # Remove stop words
 #  phrase <- removeWords(phrase,stopwords())
   phrase <- removePunctuation(phrase)
   
-#  last.4grams <- tolower(tail(NGramTokenizer(phrase, Weka_control(min=4,max=4)),1))
-  last.3grams <- tolower(tail(NGramTokenizer(phrase, Weka_control(min=3,max=3)),1))
-  last.2grams <- tolower(tail(NGramTokenizer(phrase, Weka_control(min=2,max=2)),1))
-  last.gram <- tolower(tail(WordTokenizer(phrase),1))
-  ### Through here, this takes 218 seconds (usisng 10%)
-  ### Using only 1% and data tables, now this takes 72 seconds; it's still 30,000 words
+  # Grab grams as their indices in the hash
+  gram4 <- singlet.hash[[tolower(word(phrase, -1))]]
+  gram3 <- singlet.hash[[tolower(word(phrase, -2))]]
+  gram2 <- singlet.hash[[tolower(word(phrase, -3))]]
+  gram1 <- singlet.hash[[tolower(word(phrase, -4))]]
+  
+  # Filter answers that share the last gram and so forth
+  library(dplyr)
+  last1 <- filter(quin.df, word.4 == gram4)
+  last2 <- filter(last1, word.3 == gram3)
+  last3 <- filter(last2, word.2 == gram2)
+  last4 <- filter(last3, word.1 == gram1)
+  
   
   ## Use a simple MLE method on couplet table
   all.candidates <- subset(couplet.df, ngram == last.gram)
