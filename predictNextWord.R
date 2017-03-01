@@ -1,9 +1,9 @@
 ## predictNextWord.R
 library(tokenizers)
-suppressMessages(library(data.table))
 library(stringr)
 suppressMessages(library(tm))
 library(hash)
+suppressMessages(library(dtplyr))
 
 constructNgramTables <- function(){
 
@@ -54,7 +54,7 @@ constructNgramTables <- function(){
   
   # Create N-gram table up to 5 grams
   quins <- unlist(tokenize_ngrams(en.data, n = 5))
-  rm(en.data); invisible(gc())
+  invisible(gc())
   quins <-str_split(quins,pattern=" ")
   
   convert.to.ints <- function(ngram,singlet.hash){
@@ -72,64 +72,88 @@ constructNgramTables <- function(){
   quins <- lapply(quins,convert.to.ints,singlet.hash=singlet.hash)
   quin.matrix <- matrix(unlist(quins), ncol = 5, byrow = TRUE)
   
-  # Option to convert to data table
+  # Convert to data table
   quin.df <- data.table(word.1 = quin.matrix[,1],
                         word.2 = quin.matrix[,2],
                         word.3 = quin.matrix[,3],
                         word.4 = quin.matrix[,4],
                         word.5 = quin.matrix[,5])
+  rm(quin.matrix)
   
+  # Create 4-gram, 3-gram, and 2-gram tables too
+  quads <- unlist(tokenize_ngrams(en.data, n = 4))
+  invisible(gc())
+  quads <-str_split(quads,pattern=" ")
+  quads <- lapply(quads,convert.to.ints,singlet.hash=singlet.hash)
+  quad.matrix <- matrix(unlist(quads), ncol = 4, byrow = TRUE)
+  
+  quad.df <- data.table(word.1 = quad.matrix[,1],
+                        word.2 = quad.matrix[,2],
+                        word.3 = quad.matrix[,3],
+                        word.4 = quad.matrix[,4])
+  rm(quad.matrix)
+  
+  trips <- unlist(tokenize_ngrams(en.data, n = 3))
+  invisible(gc())
+  trips <-str_split(trips,pattern=" ")
+  trips <- lapply(trips,convert.to.ints,singlet.hash=singlet.hash)
+  trip.matrix <- matrix(unlist(trips), ncol = 3, byrow = TRUE)
+  
+  trip.df <- data.table(word.1 = trip.matrix[,1],
+                        word.2 = trip.matrix[,2],
+                        word.3 = trip.matrix[,3])
+  rm(trip.matrix)
+  
+  coups <- unlist(tokenize_ngrams(en.data, n = 2))
+  rm(en.data); invisible(gc())
+  coups <-str_split(coups,pattern=" ")
+  coups <- lapply(coups,convert.to.ints,singlet.hash=singlet.hash)
+  coup.matrix <- matrix(unlist(coups), ncol = 2, byrow = TRUE)
 
+  coup.df <- data.table(word.1 = coup.matrix[,1],
+                        word.2 = coup.matrix[,2])
+  rm(coup.matrix)
   
   return(list(quin.df,
+              quad.df,
+              trip.df,
+              coup.df,
               singlet.hash,
               singlet.inverted)) ## THis function currently takes 4 minutes...not bad! 
   #List is 153 Mb total, but 76.5 if you drop a quin; they're basically the same size
+  ## With all tables, now this takes 15-16 min and produces 220 Mb...not bad!
 }
 
-predictNextWord <- function(phrase,singlet.hash,quin.df){
+predictNextWord <- function(phrase,table.list){
   # Take in the input and grab the last n grams for 4, 3, 2, 1
   # Remove stop words
 #  phrase <- removeWords(phrase,stopwords())
   phrase <- removePunctuation(phrase)
   
   # Grab grams as their indices in the hash
-  gram4 <- singlet.hash[[tolower(word(phrase, -1))]]
-  gram3 <- singlet.hash[[tolower(word(phrase, -2))]]
-  gram2 <- singlet.hash[[tolower(word(phrase, -3))]]
-  gram1 <- singlet.hash[[tolower(word(phrase, -4))]]
+  gram4 <- table.list[[5]][[tolower(word(phrase, -1))]]
+  gram3 <- table.list[[5]][[tolower(word(phrase, -2))]]
+  gram2 <- table.list[[5]][[tolower(word(phrase, -3))]]
+  gram1 <- table.list[[5]][[tolower(word(phrase, -4))]]
   
-  # Filter answers that share the last gram and so forth
-  library(dplyr)
-  last1 <- filter(quin.df, word.4 == gram4)
-  last2 <- filter(last1, word.3 == gram3)
-  last3 <- filter(last2, word.2 == gram2)
-  last4 <- filter(last3, word.1 == gram1)
+  # Filter answers that share the last gram and so forth using dplyr
+  last4 <- filter(table.list[[1]],
+                  word.1 == gram1 & word.2 == gram2 & word.3 == gram3 & word.4 == gram4)
+  # Going forward, don't let the last gram be the same as previous
+  last3 <- filter(table.list[[2]], 
+                  word.1 == gram2 & word.2 == gram3 & word.3 == gram4 & !(word.4 %in% last4$word.5))
+  last2 <- filter(table.list[[3]], 
+                  word.1 == gram3 & word.2 == gram4 & !(word.3 %in% last4$word.5) & !(word.3 %in% last3$word.4))
   
-  
-  ## Use a simple MLE method on couplet table
-  all.candidates <- subset(couplet.df, ngram == last.gram)
-  all.candidates <- all.candidates[order(all.candidates$N, decreasing = TRUE),]
-  couplet.prediction <- all.candidates$last.word[[1]]
+  last1 <- filter(table.list[[4]], 
+                  word.1 == gram4 & !(word.2 %in% last4$word.5) & !(word.2 %in% last3$word.4) & !(word.2 %in% last2$word.3))
 
-  # Use MLE on triplet and quad
-  all.candidates <- subset(triplet.df, ngram == last.2grams)
-  all.candidates <- all.candidates[order(all.candidates$N, decreasing = TRUE),]
-  triplet.prediction <- all.candidates$last.word[[1]]
+  # Now we have unique things
+  ## Grab the table of each one, but eliminate things we've already seen
+  tbl.5gram <- sort(table(last4$word.5),decreasing=TRUE)
+  tbl.4gram <- sort(table(last3$word.4),decreasing=TRUE)
+  tbl.3gram <- sort(table(last2$word.3),decreasing=TRUE)
+  tbl.2gram <- sort(table(last1$word.2),decreasing=TRUE)
   
-  all.candidates <- subset(quad.df, ngram == last.3grams)
-  all.candidates <- all.candidates[order(all.candidates$N, decreasing = TRUE),]
-  quad.prediction <- all.candidates$last.word[[1]]  
-  
-#  all.candidates <- subset(quin.df, ngram == last.4grams)
-#  all.candidates <- all.candidates[order(all.candidates$N, decreasing = TRUE),]
-#  quin.prediction <- all.candidates$last.word[[1]]  
-  # Construct table of frequencies for 4 grams
-  
-  # Construct table of frequencies for 3 grams
-  
-  # Construct table of frequencies for 2 grams
-  return(list(quad.prediction,
-              triplet.prediction,
-              couplet.prediction))
+  return(my.prediction)
 }
