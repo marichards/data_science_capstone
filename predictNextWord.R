@@ -1,8 +1,9 @@
 ## predictNextWord.R
-library(tokenizers)
-library(stringr)
 suppressMessages(library(tm))
-library(hash)
+suppressMessages(library(tokenizers))
+suppressMessages(library(stringr))
+suppressMessages(library(hash))
+suppressMessages(library(plyr))
 suppressMessages(library(dplyr))
 suppressMessages(library(data.table))
 
@@ -17,18 +18,21 @@ constructNgramTables <- function(){
   
   # Take 10% of each (or 20% if stopwords are removed?)
   set.seed(10185) #140185 seems to not work well
-  en.blog <- sample(en.blog,round(length(en.blog)/10))
-  en.news <- sample(en.blog,round(length(en.blog)/10))
-  en.twitter <- sample(en.blog,round(length(en.blog)/10))
+  en.blog <- sample(en.blog,round(length(en.blog)/5))
+  en.news <- sample(en.blog,round(length(en.blog)/5))
+  en.twitter <- sample(en.blog,round(length(en.blog)/5))
   
   # Combine the data
   en.data <- c(en.blog,en.news,en.twitter)
   rm(en.blog,en.news,en.twitter)
   invisible(gc())
   
-  # Clean the data
+  #### Clean the data ####
+  
+  # Split by sentences
+  en.data <- unlist(str_split(en.data, pattern = "\\.+"))
+  en.data <- en.data[en.data != ""]
 
-  ############## Dataset is now clean ##################  en.data <- tolower(en.data)
   # Try removing stop words
   en.data <- tolower(en.data)
 
@@ -56,9 +60,9 @@ constructNgramTables <- function(){
   rm(singlets); invisible(gc())
   
   # Create N-gram table up to 5 grams
-  quins <- unlist(tokenize_ngrams(en.data, n = 5))
-  invisible(gc())
-  quins <-str_split(quins,pattern=" ")
+#  quins <- unlist(tokenize_ngrams(en.data, n = 5))
+#  invisible(gc())
+#  quins <-str_split(quins,pattern=" ")
   
   convert.to.ints <- function(ngram,singlet.hash){
     
@@ -72,18 +76,18 @@ constructNgramTables <- function(){
   }
   
   # Convert to integers and make into a matrix
-  quins <- lapply(quins,convert.to.ints,singlet.hash=singlet.hash)
-  quin.matrix <- matrix(unlist(quins), ncol = 5, byrow = TRUE)
+#  quins <- lapply(quins,convert.to.ints,singlet.hash=singlet.hash)
+#  quin.matrix <- matrix(unlist(quins), ncol = 5, byrow = TRUE)
   
   # Convert to data table
-  quin.df <- data.table(word.1 = quin.matrix[,1],
-                        word.2 = quin.matrix[,2],
-                        word.3 = quin.matrix[,3],
-                        word.4 = quin.matrix[,4],
-                        word.5 = quin.matrix[,5])
-  rm(quin.matrix)
+#  quin.df <- data.table(word.1 = quin.matrix[,1],
+#                        word.2 = quin.matrix[,2],
+#                        word.3 = quin.matrix[,3],
+#                        word.4 = quin.matrix[,4],
+#                        word.5 = quin.matrix[,5])
+#  rm(quin.matrix)
   
-  # Create 4-gram, 3-gram, and 2-gram tables too
+  # Create 4-gram, 3-gram, and 2-gram tables
   quads <- unlist(tokenize_ngrams(en.data, n = 4))
   invisible(gc())
   quads <-str_split(quads,pattern=" ")
@@ -94,7 +98,7 @@ constructNgramTables <- function(){
                         word.2 = quad.matrix[,2],
                         word.3 = quad.matrix[,3],
                         word.4 = quad.matrix[,4])
-  rm(quad.matrix)
+  rm(quads); rm(quad.matrix)
   
   trips <- unlist(tokenize_ngrams(en.data, n = 3))
   invisible(gc())
@@ -105,7 +109,7 @@ constructNgramTables <- function(){
   trip.df <- data.table(word.1 = trip.matrix[,1],
                         word.2 = trip.matrix[,2],
                         word.3 = trip.matrix[,3])
-  rm(trip.matrix)
+  rm(trips); rm(trip.matrix)
   
   coups <- unlist(tokenize_ngrams(en.data, n = 2))
   rm(en.data); invisible(gc())
@@ -115,10 +119,9 @@ constructNgramTables <- function(){
 
   coup.df <- data.table(word.1 = coup.matrix[,1],
                         word.2 = coup.matrix[,2])
-  rm(coup.matrix)
+  rm(coups); rm(coup.matrix)
   
-  return(list(quin.df,
-              quad.df,
+  return(list(quad.df,
               trip.df,
               coup.df,
               singlet.hash,
@@ -127,6 +130,9 @@ constructNgramTables <- function(){
   ## With all tables, now this takes 15-16 min and produces 220 Mb...not bad!
   # Using 20% and no stop words, takes 24 min and 254.3 Mb
   # Using 20% and all the words, takes 46 min and 515 Mb
+  # Dropping the quin.df and using 10%, it takes about 11 minutes and 132 Mb
+  # 55 Mb in quads; 45 in trips; 32 in coups
+  # Dropping quin.df and using 20%, takes 30 min and 307 Mb
 }
 
 predictNextWord <- function(phrase,table.list){
@@ -141,51 +147,74 @@ predictNextWord <- function(phrase,table.list){
   
   
   # Grab grams as their indices in the hash
-  gram4 <- table.list[[5]][[word(phrase, -1)]]
-  gram3 <- table.list[[5]][[word(phrase, -2)]]
-  gram2 <- table.list[[5]][[word(phrase, -3)]]
-  gram1 <- table.list[[5]][[word(phrase, -4)]]
+  gram4 <- table.list[[4]][[word(phrase, -1)]]
+  gram3 <- table.list[[4]][[word(phrase, -2)]]
+  gram2 <- table.list[[4]][[word(phrase, -3)]]
+#  gram1 <- table.list[[4]][[word(phrase, -4)]]
   
   # Filter answers that share the last gram and so forth using dplyr
-  last4 <- filter(table.list[[1]],
-                  word.1 == gram1 & word.2 == gram2 & word.3 == gram3 & word.4 == gram4)
+#  last4 <- filter(table.list[[1]],
+#                  word.1 == gram1 & word.2 == gram2 & word.3 == gram3 & word.4 == gram4)
   # Going forward, don't let the last gram be the same as previous
-  last3 <- filter(table.list[[2]], 
+  last3 <- filter(table.list[[1]], 
                   word.1 == gram2 & word.2 == gram3 & word.3 == gram4)# & !(word.4 %in% last4$word.5))
-  last2 <- filter(table.list[[3]], 
+  last2 <- filter(table.list[[2]], 
                   word.1 == gram3 & word.2 == gram4)# & !(word.3 %in% last4$word.5) & !(word.3 %in% last3$word.4))
   
-  last1 <- filter(table.list[[4]], 
+  last1 <- filter(table.list[[3]], 
                   word.1 == gram4 )#& !(word.2 %in% last4$word.5) & !(word.2 %in% last3$word.4) & !(word.2 %in% last2$word.3))
 
-  # Now we have unique things
+  # Now we have unique things; add the counts
+#  last3$counts <- rep(1,nrow(last3))
+#  last2$counts <- rep(1,nrow(last2))
+#  last1$counts <- rep(1,nrow(last1))
   
+  # Sum up the tables
+#  last3 <- ddply(last3, c("word.1","word.2","word.3","word.4"),numcolwise(sum))
+#  last2 <- ddply(last2, c("word.1","word.2","word.3"),numcolwise(sum))
+#  last1 <- ddply(last1, c("word.1","word.2"),numcolwise(sum))
 
  
   ## Grab the table of each one, summing up frequencies
-  tbl.5gram <- sort(table(last4$word.5),decreasing=TRUE)
-  tbl.4gram <- sort(table(last3$word.4),decreasing=TRUE)
-  tbl.3gram <- sort(table(last2$word.3),decreasing=TRUE)
-  tbl.2gram <- sort(table(last1$word.2),decreasing=TRUE)
+#  tbl.5gram <- sort(table(last4$word.5),decreasing=TRUE)
+  tbl.4gram <- data.frame(table(last3$word.4))
+  tbl.3gram <- data.frame(table(last2$word.3))
+  tbl.2gram <- data.frame(table(last1$word.2))
   
-  # Filter out stopwords? 
+  # Remove rows of 1's
+  tbl.4gram <- subset(tbl.4gram, Freq > 1)
+  tbl.3gram <- subset(tbl.3gram, Freq > 1)
+  tbl.2gram <- subset(tbl.2gram, Freq > 1)
+  
+  # Filter out stopwords
+  stop.ints <- numeric(length = length(stopwords()))
+  for(i in 1:length(stopwords()))
+    {stop.ints[[i]] <- table.list[[4]][[stopwords()[[i]]]]}
+  
+  tbl.4gram <- filter(tbl.4gram, !(Var1 %in% stop.ints))
+  tbl.3gram <- filter(tbl.3gram, !(Var1 %in% stop.ints))
+  tbl.2gram <- filter(tbl.2gram, !(Var1 %in% stop.ints))
+  
+  # Sort it by freq
+  tbl.4gram <- tbl.4gram[order(tbl.4gram$Freq, decreasing = TRUE),]
+  tbl.3gram <- tbl.3gram[order(tbl.3gram$Freq, decreasing = TRUE),]
+  tbl.2gram <- tbl.2gram[order(tbl.2gram$Freq, decreasing = TRUE),]
   
   # Return things if they're not null
-  if(length(tbl.5gram) !=0)
-  {pred5 <- table.list[[6]][[names(tbl.5gram)[[1]]]]}
-  else{pred5 <- NA}
-  if(length(tbl.4gram) !=0)
-  {pred4 <- table.list[[6]][[names(tbl.4gram)[[1]]]]}
+#  if(length(tbl.5gram) !=0)
+#  {pred5 <- table.list[[6]][[names(tbl.5gram)[[1]]]]}
+#  else{pred5 <- NA}
+  if(nrow(tbl.4gram) !=0)
+  {pred4 <- table.list[[5]][[as.character(tbl.4gram$Var1[[1]])]]}
   else{pred4 <- NA}
-  if(length(tbl.3gram) !=0)
-  {pred3 <- table.list[[6]][[names(tbl.3gram)[[1]]]]}
+  if(nrow(tbl.3gram) !=0)
+  {pred3 <- table.list[[5]][[as.character(tbl.3gram$Var1[[1]])]]}
   else{pred3 <- NA}
-  if(length(tbl.2gram) !=0)
-  {pred2 <- table.list[[6]][[names(tbl.2gram)[[1]]]]}
+  if(nrow(tbl.2gram) !=0)
+  {pred2 <- table.list[[5]][[as.character(tbl.2gram$Var1[[1]])]]}
   else{pred2 <- NA}
   
-  my.prediction <- data.frame(pred5 = pred5,
-                              pred4 = pred4,
+  my.prediction <- data.frame(pred4 = pred4,
                               pred3 = pred3,
                               pred2 = pred2)
   return(my.prediction)
