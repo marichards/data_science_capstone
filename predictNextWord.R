@@ -121,18 +121,19 @@ constructNgramTables <- function(){
                         word.2 = coup.matrix[,2])
   rm(coups); rm(coup.matrix)
   
-  return(list(quad.df,
-              trip.df,
-              coup.df,
-              singlet.hash,
-              singlet.inverted)) ## THis function currently takes 4 minutes...not bad! 
+  return(list(quads = quad.df,
+              trips = trip.df,
+              coups = coup.df,
+              word.hash = singlet.hash,
+              word.hash.inv = singlet.inverted)) ## THis function currently takes 4 minutes...not bad! 
   #List is 153 Mb total, but 76.5 if you drop a quin; they're basically the same size
   ## With all tables, now this takes 15-16 min and produces 220 Mb...not bad!
   # Using 20% and no stop words, takes 24 min and 254.3 Mb
   # Using 20% and all the words, takes 46 min and 515 Mb
   # Dropping the quin.df and using 10%, it takes about 11 minutes and 132 Mb
   # 55 Mb in quads; 45 in trips; 32 in coups
-  # Dropping quin.df and using 20%, takes 30 min and 307 Mb
+  # Dropping quin.df and using 20%, takes 30 min and 307 Mb (on Sandwich)
+  # Takes only 15 min on Buoy
 }
 
 predictNextWord <- function(phrase,table.list){
