@@ -137,47 +137,35 @@ constructNgramTables <- function(){
 }
 
 predictNextWord <- function(phrase,table.list){
-  # Take in the input and grab the last n grams for 4, 3, 2, 1
-  # Remove stop words
+  # Take in the input and grab the last n grams for 3, 2, 1
   phrase <- tolower(phrase)
   phrase <- removePunctuation(phrase)
   phrase <- removeNumbers(phrase)
 #  phrase <- removeWords(phrase,stopwords())
   phrase <- trimws(phrase)
 
-  
+  # Remove words that aren't in the singlet hash
+  all.words <- strsplit(phrase, split = " ")[[1]]
+  not.there <- all.words[!(all.words %in% keys(table.list$word.hash))]
+  phrase <- removeWords(phrase, not.there)
+  phrase <- stripWhitespace(phrase)
   
   # Grab grams as their indices in the hash
-  gram4 <- table.list[[4]][[word(phrase, -1)]]
-  gram3 <- table.list[[4]][[word(phrase, -2)]]
-  gram2 <- table.list[[4]][[word(phrase, -3)]]
-#  gram1 <- table.list[[4]][[word(phrase, -4)]]
+  gram4 <- table.list$word.hash[[word(phrase, -1)]]
+  gram3 <- table.list$word.hash[[word(phrase, -2)]]
+  gram2 <- table.list$word.hash[[word(phrase, -3)]]
   
   # Filter answers that share the last gram and so forth using dplyr
-#  last4 <- filter(table.list[[1]],
-#                  word.1 == gram1 & word.2 == gram2 & word.3 == gram3 & word.4 == gram4)
   # Going forward, don't let the last gram be the same as previous
-  last3 <- filter(table.list[[1]], 
+  last3 <- filter(table.list$quads, 
                   word.1 == gram2 & word.2 == gram3 & word.3 == gram4)# & !(word.4 %in% last4$word.5))
-  last2 <- filter(table.list[[2]], 
+  last2 <- filter(table.list$trips, 
                   word.1 == gram3 & word.2 == gram4)# & !(word.3 %in% last4$word.5) & !(word.3 %in% last3$word.4))
   
-  last1 <- filter(table.list[[3]], 
+  last1 <- filter(table.list$coups, 
                   word.1 == gram4 )#& !(word.2 %in% last4$word.5) & !(word.2 %in% last3$word.4) & !(word.2 %in% last2$word.3))
-
-  # Now we have unique things; add the counts
-#  last3$counts <- rep(1,nrow(last3))
-#  last2$counts <- rep(1,nrow(last2))
-#  last1$counts <- rep(1,nrow(last1))
-  
-  # Sum up the tables
-#  last3 <- ddply(last3, c("word.1","word.2","word.3","word.4"),numcolwise(sum))
-#  last2 <- ddply(last2, c("word.1","word.2","word.3"),numcolwise(sum))
-#  last1 <- ddply(last1, c("word.1","word.2"),numcolwise(sum))
-
  
   ## Grab the table of each one, summing up frequencies
-#  tbl.5gram <- sort(table(last4$word.5),decreasing=TRUE)
   tbl.4gram <- data.frame(table(last3$word.4))
   tbl.3gram <- data.frame(table(last2$word.3))
   tbl.2gram <- data.frame(table(last1$word.2))
@@ -190,7 +178,7 @@ predictNextWord <- function(phrase,table.list){
   # Filter out stopwords
   stop.ints <- numeric(length = length(stopwords()))
   for(i in 1:length(stopwords()))
-    {stop.ints[[i]] <- table.list[[4]][[stopwords()[[i]]]]}
+    {stop.ints[[i]] <- table.list$word.hash[[stopwords()[[i]]]]}
   
   tbl.4gram <- filter(tbl.4gram, !(Var1 %in% stop.ints))
   tbl.3gram <- filter(tbl.3gram, !(Var1 %in% stop.ints))
@@ -200,23 +188,50 @@ predictNextWord <- function(phrase,table.list){
   tbl.4gram <- tbl.4gram[order(tbl.4gram$Freq, decreasing = TRUE),]
   tbl.3gram <- tbl.3gram[order(tbl.3gram$Freq, decreasing = TRUE),]
   tbl.2gram <- tbl.2gram[order(tbl.2gram$Freq, decreasing = TRUE),]
-  
+
   # Return things if they're not null
-#  if(length(tbl.5gram) !=0)
-#  {pred5 <- table.list[[6]][[names(tbl.5gram)[[1]]]]}
-#  else{pred5 <- NA}
-  if(nrow(tbl.4gram) !=0)
-  {pred4 <- table.list[[5]][[as.character(tbl.4gram$Var1[[1]])]]}
-  else{pred4 <- NA}
-  if(nrow(tbl.3gram) !=0)
-  {pred3 <- table.list[[5]][[as.character(tbl.3gram$Var1[[1]])]]}
-  else{pred3 <- NA}
-  if(nrow(tbl.2gram) !=0)
-  {pred2 <- table.list[[5]][[as.character(tbl.2gram$Var1[[1]])]]}
+  if(is.data.frame(tbl.4gram)){
+    if(nrow(tbl.4gram) !=0){
+      lambda.1 <- 0.5
+      tbl.4gram <- mutate(tbl.4gram, gt.probs.4 = lambda.1*Freq/(sum(Freq)))
+    pred4 <- tbl.4gram[c("Var1", "gt.probs.4")]}
+    else{pred4 <- NA; lambda.1 <- 0}}
+  else{pred4 <- NA; lambda.1 <- 0}
+  
+  if(is.data.frame(tbl.3gram)){
+    if(nrow(tbl.3gram) !=0){
+      lambda.2 <- -0.7*(lambda.1 - 1)
+      tbl.3gram <- mutate(tbl.3gram, gt.probs.3 = lambda.2*Freq/(sum(Freq)))
+  pred3 <- tbl.3gram[c("Var1", "gt.probs.3")]}
+    else{pred3 <- NA; lambda.2 <- 0}}
+  else{pred3 <- NA; lambda.2 <- 0}
+  
+  if(is.data.frame(tbl.2gram)){ 
+    if(nrow(tbl.2gram) !=0){
+      lambda.3 <- 1 - lambda.1 - lambda.2
+      tbl.2gram <- mutate(tbl.2gram, gt.probs.2 = lambda.3*Freq/(sum(Freq)))
+  pred2 <- tbl.2gram[c("Var1", "gt.probs.2")]}
+    else{pred2 <- NA}}
   else{pred2 <- NA}
   
-  my.prediction <- data.frame(pred4 = pred4,
-                              pred3 = pred3,
-                              pred2 = pred2)
+  # Have each data frame; merge them based on cases and sum probabilities
+  if(is.data.frame(pred4)){
+    pred.tbl <- join_all(list(pred4, pred3, pred2), by = "Var1", type = "full")
+    pred.tbl[is.na(pred.tbl)] <- 0
+    pred.tbl <- mutate(pred.tbl, prob.total = gt.probs.4 + gt.probs.3 + gt.probs.2)
+  }
+  else if(is.data.frame(pred3)){
+    pred.tbl <- join_all(list(pred3, pred2), by = "Var1", type = "full")
+    pred.tbl[is.na(pred.tbl)] <- 0
+    pred.tbl<- mutate(pred.tbl, prob.total = gt.probs.3 + gt.probs.2)
+  }
+  else{pred.tbl <- pred2
+  pred.tbl$prob.total <- gt.probs.2
+  }
+  
+  # Find the index of the highest number
+  pred.idx <- which(pred.tbl$prob.total == max(pred.tbl$prob.total))
+  my.prediction <- table.list$word.hash.inv[[as.character(pred.tbl$Var1[[pred.idx]])]]
+  
   return(my.prediction)
 }

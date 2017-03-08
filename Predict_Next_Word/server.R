@@ -9,6 +9,7 @@
 
 library(shiny)
 library(stringr)
+source("../predictNextWord.R")
 
 # Define server logic required to draw a histogram
 shinyServer(function(input, output) {
@@ -18,8 +19,8 @@ shinyServer(function(input, output) {
   predict.word <- eventReactive(input$submit.phrase,{
     
     # For now, just return the last word after lowering its case
-    my.word <- word(input$phrase, -1)
-    return(tolower(my.word))
+    my.word <- predictNextWord(input$phrase, table.list)
+    return(my.word)
   })
   
   output$next.word <- renderText(predict.word())
