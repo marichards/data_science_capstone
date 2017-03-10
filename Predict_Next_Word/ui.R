@@ -24,7 +24,9 @@ shinyUI(fluidPage(
     
     # Show a plot of the generated distribution
     mainPanel(
-       textOutput("next.word")
+       textOutput("next.word"),
+       plotOutput("word.plot")
+       
     )
   )
 ))
