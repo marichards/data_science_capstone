@@ -1,0 +1,39 @@
+---
+title: "Text Prediction Presentation"
+author: "Matthew Richards"
+date: "March 19, 2017"
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Title Slide
+
+This is the title slide for my presentation
+
+## Overview
+
+- Bullet 1
+- Bullet 2
+- Bullet 3
+
+## Algorithm Summary
+
+-Constrution of N-gram tables
+-Katz Backoff Model
+
+```{r cars, echo = TRUE}
+summary(cars)
+```
+
+## User Interface
+
+```{r pressure}
+plot(pressure)
+```
+
+## Algorithm Performance
+
+I need to write a test
