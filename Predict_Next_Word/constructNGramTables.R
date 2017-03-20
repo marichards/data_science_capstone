@@ -124,10 +124,5 @@ constructNgramTables <- function(){
               trips = trip.df,
               coups = coup.df,
               word.hash = singlet.hash,
-              word.hash.inv = singlet.inverted)) ## THis function currently takes 4 minutes...not bad! 
-  # Dropping the quin.df and using 10%, it takes about 11 minutes and 132 Mb
-  # 55 Mb in quads; 45 in trips; 32 in coups
-  # Dropping quin.df and using 20%, takes 30 min and 307 Mb (on Sandwich)
-  # Takes only 15 min on Buoy
-  # Sandwich on Battery, 1/15 of the data; 7 min, 83 Mb
+              word.hash.inv = singlet.inverted))
 }

@@ -28,9 +28,11 @@ predictNextWord <- function(phrase,table.list){
   
   # Create list of integers for stopwords
   stop.ints <- numeric(length = length(stopwords()))
-  for(i in 1:length(stopwords()))
-    {stop.ints[[i]] <- table.list$word.hash[[stopwords()[[i]]]]}
-  
+  altered.stops <- removePunctuation(stopwords())
+  altered.stops <- intersect(altered.stops, keys(table.list$word.hash))
+  for(i in 1:length(altered.stops)){
+    {stop.ints[[i]] <- table.list$word.hash[[altered.stops[[i]]]]}
+  }
   
   # Create a short function that converts an ID to a word
   convert.to.word <- function(nint,word.hash.inv){
