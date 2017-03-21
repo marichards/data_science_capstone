@@ -1,5 +1,5 @@
 ---
-title: "Text Prediction Presentation"
+title: "Text Prediction in R with a Katz Backoff Model"
 author: "Matthew Richards"
 date: "March 19, 2017"
 output: ioslides_presentation
@@ -9,15 +9,13 @@ output: ioslides_presentation
 knitr::opts_chunk$set(echo = FALSE)
 ```
 
-## Title Slide
-
-This is the title slide for my presentation
-
 ## Overview
 
-- Bullet 1
-- Bullet 2
-- Bullet 3
+- Training set: 10% of each data set 
+--en_blogs
+--en_news
+--en_twitter
+- Approach: Katz Backoff Model
 
 ## Algorithm Summary
 

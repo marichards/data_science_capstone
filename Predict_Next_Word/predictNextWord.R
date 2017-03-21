@@ -109,29 +109,30 @@ predictNextWord <- function(phrase,table.list){
   if(is.data.frame(pred4)){
     pred.tbl <- join_all(list(pred4, pred3, pred2), by = "Var1", type = "full")
     pred.tbl[is.na(pred.tbl)] <- 0
-    pred.tbl <- mutate(pred.tbl, prob.total = gt.probs.4 + gt.probs.3 + gt.probs.2)
+    pred.tbl <- mutate(pred.tbl, Probability = gt.probs.4 + gt.probs.3 + gt.probs.2)
   }
   else if(is.data.frame(pred3)){
     pred.tbl <- join_all(list(pred3, pred2), by = "Var1", type = "full")
     pred.tbl[is.na(pred.tbl)] <- 0
-    pred.tbl<- mutate(pred.tbl, prob.total = gt.probs.3 + gt.probs.2)
+    pred.tbl<- mutate(pred.tbl, Probability = gt.probs.3 + gt.probs.2)
   }
   else{pred.tbl <- pred2
   pred.tbl <- pred2
-  pred.tbl$prob.total <- pred.tbl$gt.probs.2
+  pred.tbl$Probability <- pred.tbl$gt.probs.2
   }
   
   # Sort the table, grabbing total probs and the words for the top 5
-  pred.tbl <- head(pred.tbl[order(pred.tbl$prob.total, decreasing = TRUE),
-                   c("Var1", "prob.total")],5)
+  pred.tbl <- head(pred.tbl[order(pred.tbl$Probability, decreasing = TRUE),
+                   c("Var1", "Probability")],10)
   
   word.ints <- as.character(pred.tbl$Var1)
   pred.words <- character(length = length(word.ints))
   for(i in 1:length(word.ints)){
     pred.words[[i]] <- convert.to.word(word.ints[[i]], table.list$word.hash.inv)
   }
-  pred.tbl$pred.words <- pred.words
+  pred.tbl$Word <- pred.words
   top.prediction <- pred.words[[1]]
+  pred.tbl <- pred.tbl[c("Word","Probability")]
   
   return(list(top.prediction = top.prediction,
               pred.tbl = pred.tbl))}
@@ -179,23 +180,24 @@ predictNextWord <- function(phrase,table.list){
     if(is.data.frame(pred3)){
       pred.tbl <- join_all(list(pred3, pred2), by = "Var1", type = "full")
       pred.tbl[is.na(pred.tbl)] <- 0
-      pred.tbl<- mutate(pred.tbl, prob.total = gt.probs.3 + gt.probs.2)
+      pred.tbl<- mutate(pred.tbl, Probability = gt.probs.3 + gt.probs.2)
     }
     else{pred.tbl <- pred2
-    pred.tbl$prob.total <- pred.tbl$gt.probs.2
+    pred.tbl$Probability <- pred.tbl$gt.probs.2
     }
     
     # Sort the table, grabbing total probs and the words for the top 5
-    pred.tbl <- head(pred.tbl[order(pred.tbl$prob.total, decreasing = TRUE),
-                              c("Var1", "prob.total")],5)
+    pred.tbl <- head(pred.tbl[order(pred.tbl$Probability, decreasing = TRUE),
+                              c("Var1", "Probability")],10)
     
     word.ints <- as.character(pred.tbl$Var1)
     pred.words <- character(length = length(word.ints))
     for(i in 1:length(word.ints)){
       pred.words[[i]] <- convert.to.word(word.ints[[i]], table.list$word.hash.inv)
     }
-    pred.tbl$pred.words <- pred.words
+    pred.tbl$Word <- pred.words
     top.prediction <- pred.words[[1]]
+    pred.tbl <- pred.tbl[c("Word","Probability")]
     
     return(list(top.prediction = top.prediction,
                 pred.tbl = pred.tbl))}
@@ -220,22 +222,23 @@ predictNextWord <- function(phrase,table.list){
     if(is.data.frame(tbl.2gram)){ 
       if(nrow(tbl.2gram) !=0){
         lambda.3 <- 1
-        tbl.2gram <- mutate(tbl.2gram, prob.total = lambda.3*Freq/(sum(Freq)))
-        pred.tbl <- tbl.2gram[c("Var1", "prob.total")]}
+        tbl.2gram <- mutate(tbl.2gram, Probability = lambda.3*Freq/(sum(Freq)))
+        pred.tbl <- tbl.2gram[c("Var1", "Probability")]}
       else{pred.tbl <- NA}}
     else{pred.tbl <- NA}
     
     # Sort the table, grabbing total probs and the words for the top 5
-    pred.tbl <- head(pred.tbl[order(pred.tbl$prob.total, decreasing = TRUE),
-                              c("Var1", "prob.total")],5)
+    pred.tbl <- head(pred.tbl[order(pred.tbl$Probability, decreasing = TRUE),
+                              c("Var1", "Probability")],10)
     
     word.ints <- as.character(pred.tbl$Var1)
     pred.words <- character(length = length(word.ints))
     for(i in 1:length(word.ints)){
       pred.words[[i]] <- convert.to.word(word.ints[[i]], table.list$word.hash.inv)
     }
-    pred.tbl$pred.words <- pred.words
+    pred.tbl$Word <- pred.words
     top.prediction <- pred.words[[1]]
+    pred.tbl <- pred.tbl[c("Word","Probability")]
     
     return(list(top.prediction = top.prediction,
                 pred.tbl = pred.tbl))}

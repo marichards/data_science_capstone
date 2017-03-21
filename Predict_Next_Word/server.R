@@ -18,9 +18,13 @@ shinyServer(function(input, output) {
   output$next.word <- renderText(predict.word()[[1]])
   
   output$word.plot <- renderPlot(
-    barplot(height = predict.word()[[2]]$prob.total,
-            names.arg = predict.word()[[2]]$pred.words,
-            horiz = FALSE, col = 2:6,
+    barplot(height = predict.word()[[2]]$Probability[1:5],
+            names.arg = predict.word()[[2]]$Word[1:5],
+            horiz = FALSE, col = 1+round(4*predict.word()[[2]]$Probability[1:5]),
             xlab = "5 Most Likely Words",
             ylab = "Estimated Probability"))
+  
+  output$word.table <- renderTable(
+    predict.word()[[2]]
+  )
 })
