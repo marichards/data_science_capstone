@@ -9,18 +9,22 @@ shinyUI(fluidPage(
   # Sidebar with a slider input for number of bins 
   sidebarLayout(
     sidebarPanel(
+      h3("Instructions for Use"),
+      tags$ol(
+        tags$li("Enter a phrase below"),
+        tags$li("Click the 'Submit Phrase' button")
+      ),
        textInput("phrase","Enter a phrase:"),
-       actionButton("submit.phrase","Submit phrase"),
-       h3("Top Predicted Word"),
-       textOutput("next.word")
+       actionButton("submit.phrase","Submit Phrase"),
+       h4("Top Predicted Word:"),
+      h4(textOutput("next.word"))
     ),
     
     # Show a plot of the generated distribution
     mainPanel(
-      tabsetPanel(type = "tabs",
-       tabPanel("Top Word Barplot", br(), plotOutput("word.plot")),
-       tabPanel("Top Word Table", br(), tableOutput("word.table"))
-      )
+       plotOutput("word.plot"),
+       tableOutput("word.table")
+      
     )
   )
 ))

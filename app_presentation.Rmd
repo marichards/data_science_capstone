@@ -28,9 +28,10 @@ summary(cars)
 
 ## User Interface
 
-```{r pressure}
-plot(pressure)
-```
+-Short Instructions
+-User input via a text box
+-Barplot of the top 5 words, colored by predicted probability
+-Table of the top 5 words and their predicted probabilities
 
 ## Algorithm Performance
 
