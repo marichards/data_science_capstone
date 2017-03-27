@@ -3,8 +3,9 @@ title: Predict_Next_Word
 account: marichards
 server: shinyapps.io
 appId: 165646
-bundleId: 756787
+bundleId: 764094
 url: https://marichards.shinyapps.io/Predict_Next_Word/
-when: 1490129546.70299
+when: 1490552627.68825
 asMultiple: FALSE
 asStatic: FALSE
+ignoredFiles: constructNGramTables.R

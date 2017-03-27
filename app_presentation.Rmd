@@ -1,7 +1,7 @@
 ---
 title: "Text Prediction in R with a Katz Backoff Model"
 author: "Matthew Richards"
-date: "March 19, 2017"
+date: "March 26, 2017"
 output: ioslides_presentation
 ---
 
@@ -9,30 +9,70 @@ output: ioslides_presentation
 knitr::opts_chunk$set(echo = FALSE)
 ```
 
-## Overview
+## Algorithm Overview
 
-- Training set: 10% of each data set 
---en_blogs
---en_news
---en_twitter
-- Approach: Katz Backoff Model
+Part 1: Constructing N-Gram Tables
 
-## Algorithm Summary
+1. Using 10% of each supplied data set (blogs, news, and Twitter), clean the data and split into N-gram tokens up to 4 grams
+2. Convert the tokens to integers and use them to create N-gram lookup tables for 4-gram, 3-gram, and 2-gram tokens
 
--Constrution of N-gram tables
--Katz Backoff Model
+Part 2: Predicting Given a New Phrase
 
-```{r cars, echo = TRUE}
-summary(cars)
-```
-
-## User Interface
-
--Short Instructions
--User input via a text box
--Barplot of the top 5 words, colored by predicted probability
--Table of the top 5 words and their predicted probabilities
+1. Clean the supplied phrase, take the final 3 words, and convert them to integers for table lookup
+2. Find matches in all N-gram tables, discarding any that would predict a "stop word" 
+3. Using a Katz Backoff Model, assign probabilities and return the top predictions
 
 ## Algorithm Performance
 
-I need to write a test
+I tested both the predictive accuracy of the top prediction, and whether the correct prediction was contained in the top 5 as follows: 
+
+1. Take a new sample of the supplied data and run the algorithm on each phrase, leaving out the last word.
+2. Compare each top prediction to the real last word to get "Predictive Accuracy""
+3. Check if each list of the top 5 predictions contains the real last word to get "Top 5 Accuracy"
+
+Based on this procedure, my algorithm produced the following metrics:
+
+* **Predictive accuracy: 13.2%**
+* **Top 5 accuracy: 25.1%**
+
+
+## Demonstration of Algorithm Output
+
+For example, we can try looking up the phrase "Once upon a"
+
+```{r echo = FALSE}
+library(stringr)
+library(xtable)
+suppressWarnings(source("./Predict_Next_Word/predictNextWord.R"))
+table.list <- readRDS("./Predict_Next_Word/10percent_tablelist.rds")
+```
+
+```{r echo = TRUE}
+phrase <- "Once upon a"
+predict.word <- predictNextWord(phrase, table.list)
+print(predict.word[[1]])
+predict.word[[2]][1:5,]
+```
+
+## The Web Interface
+
+The web interface is relatively simple:
+
+* Enter a phrase into the text box and click "Submit Phrase"
+* Observe your results, including an illustrative barplot:
+
+```{r echo = FALSE}
+    barplot(height = predict.word[[2]]$Probability[1:5],
+            names.arg = predict.word[[2]]$Word[1:5],
+            horiz = FALSE, col = 1+round((4*predict.word[[2]]$Probability[1:5])-0.5),
+            xlab = "5 Most Likely Words",
+            ylab = "Estimated Probability",
+            main = "Prediction using 'Once upon a'",
+            legend.text = c("p = 0-0.25",
+                            "p = 0.26-0.5",
+                            "p = 0.51-0.75",
+                            "p = 0.76-1"),
+            args.legend = (list("fill" = 1:4))
+            )
+
+```

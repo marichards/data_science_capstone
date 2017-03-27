@@ -229,7 +229,7 @@ predictNextWord <- function(phrase,table.list){
     
     # Sort the table, grabbing total probs and the words for the top 5
     pred.tbl <- head(pred.tbl[order(pred.tbl$Probability, decreasing = TRUE),
-                              c("Var1", "Probability")],10)
+                              c("Var1", "Probability")],5)
     
     word.ints <- as.character(pred.tbl$Var1)
     pred.words <- character(length = length(word.ints))
