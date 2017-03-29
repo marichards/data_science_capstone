@@ -18,8 +18,8 @@ testPredictiveAccuracy <- function(){
   # Take 10% of each (or 20% if stopwords are removed?)
   set.seed(12) #140185 seems to not work well
   en.blog <- sample(en.blog,round(length(en.blog)/1000))
-  en.news <- sample(en.blog,round(length(en.blog)/1000))
-  en.twitter <- sample(en.blog,round(length(en.blog)/1000))
+  en.news <- sample(en.news,round(length(en.news)/1000))
+  en.twitter <- sample(en.twitter,round(length(en.twitter)/1000))
   
   # Combine the data
   en.data <- c(en.blog,en.news,en.twitter)
